@@ -11,6 +11,8 @@ Built on the existing `spark_project` package structure.
 - **Source:** `src/hello_pyspark_local_dev/`
 - **Tests:** `tests/`
 
+> **IMPORTANT:** The existing repo is a template. The package **must** be renamed to match the package name specified above — including the `src/` directory, `pyproject.toml` `[project] name`, all imports, and any other references. Do not keep the template's original package name.
+
 ## Stack
 
 - PySpark 3.5 + Delta Lake 3.2
@@ -44,7 +46,11 @@ Built on the existing `spark_project` package structure.
 1. **Develop locally** — all modules are built and tested on the local PySpark environment first. No Fabric access is needed until the final step.
 2. **Deploy to Fabric** — once everything works locally, deploy to Microsoft Fabric as a Spark Job Definition.
    - **Workspace:** `daily_etl`
-   - **Default Lakehouse:** `pyspark_devops`
+   - **Spark Job Definition:** Use the package name (e.g., `hello_pyspark_local_dev`). If an SJD by this name does not exist, create it.
+   - **Environment:** Use the package name (e.g., `hello_pyspark_local_dev`). If an Environment by this name does not exist, create it.
+   - **Default Lakehouse:** `pyspark_devops`. If a Lakehouse by this name does not exist, create it **without schemas** (schema-disabled).
+   - Do **not** reuse existing resources with different names. Always match the package name for the SJD and Environment.
+   - For SJD deployment steps, follow the guidance in [Fabric Deployment Lessons Learned](../fabric-deployment-lessons-learned.md) and [Local Dev / Fabric Strategy](../local-dev-fabric-strategy.md).
 3. **Verify on Fabric:**
    - Check the **Livy endpoint** for job logs and execution status.
    - Check the **Lakehouse** (`pyspark_devops`) to confirm the output files (CSV and Delta table) were written correctly.

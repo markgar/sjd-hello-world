@@ -75,7 +75,13 @@ lakehouse/
         └── _delta_log/
 ```
 
-The `lakehouse/` folder is committed to the repo (or gitignored if you prefer), giving you a real filesystem to develop and test against. The same code paths work on Fabric without modification.
+The `lakehouse/` folder **must be added to `.gitignore`** so that local data files are never checked in. Add this entry to `.gitignore`:
+
+```gitignore
+lakehouse/
+```
+
+This gives you a real filesystem to develop and test against, without polluting the repo with generated data. The same code paths work on Fabric without modification.
 
 The `LAKEHOUSE_ROOT` env var can also be overridden explicitly for non-standard setups (e.g., pointing to a shared network mount or a different local directory).
 
