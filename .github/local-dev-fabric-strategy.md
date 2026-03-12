@@ -121,37 +121,79 @@ The conditional import of `delta` inside the `if is_local_dev()` block means Fab
 
 ---
 
-## 4. Authentication Strategy
+## 4. Authentication & SQL Connectivity Strategy
 
-Use `DefaultAzureCredential` from `azure-identity` for all Azure service auth. It automatically picks the right credential for each environment:
+Authentication for Azure SQL requires **different connectors** in each environment. This is a key exception to the "same code everywhere" rule — a public `read_*` function must branch on `is_local_dev()` and delegate to the correct implementation.
 
-| Environment | Credential source |
-|---|---|
-| Local Dev | Azure CLI (`az login`) |
-| Fabric | Workspace Managed Identity (automatic, no setup) |
+### Why two paths?
+
+| Concern | Local Dev | Fabric |
+|---|---|---|
+| SQL connector | JDBC (`spark.read.jdbc(...)`) | Built-in Spark SQL connector (`.mssql()`) |
+| Auth mechanism | `DefaultAzureCredential` → access token | Workspace identity (automatic Entra auth) |
+| JDBC driver JAR | Must be on the classpath (dev container provides it) | Not needed — `.mssql()` handles transport |
+| `azure-identity` | Required (`pip install azure-identity`) | **Not used** for SQL — the connector handles auth |
+
+### Local Dev — JDBC + `DefaultAzureCredential`
+
+The developer must be logged in via `az login`. `DefaultAzureCredential` obtains an access token scoped to Azure SQL, which is passed as a JDBC connection property.
 
 ```python
 from azure.identity import DefaultAzureCredential
 
-token = DefaultAzureCredential().get_token("https://database.windows.net/.default").token
+def _get_local_access_token() -> str:
+    return DefaultAzureCredential().get_token("https://database.windows.net/.default").token
+
+def _read_table_local(spark: SparkSession) -> DataFrame:
+    url = f"jdbc:sqlserver://{SERVER}:1433;database={DATABASE};encrypt=true;trustServerCertificate=false;"
+    props = {"driver": DRIVER, "accessToken": _get_local_access_token()}
+    return spark.read.jdbc(url=url, table=TABLE, properties=props)
 ```
 
-This works identically in both environments. No service-principal secrets, no connection strings baked into code.
+### Fabric — Built-in `.mssql()` Connector
 
-**Example — SQL Server via JDBC with token auth:**
+Fabric's Spark runtime pre-registers `.mssql()` on `DataFrameReader`. It auto-authenticates using the workspace's Entra identity — no tokens, no imports, no credential objects.
 
 ```python
-jdbc_url = f"jdbc:sqlserver://{server}:1433;database={database};encrypt=true;trustServerCertificate=false;"
-token = DefaultAzureCredential().get_token("https://database.windows.net/.default").token
+def _read_table_fabric(spark: SparkSession) -> DataFrame:
+    url = f"jdbc:sqlserver://{SERVER}:1433;database={DATABASE};"
+    return spark.read.option("url", url).mssql(TABLE)
+```
 
-df = (
-    spark.read.format("jdbc")
-    .option("url", jdbc_url)
-    .option("dbtable", "dbo.MyTable")
-    .option("driver", "com.microsoft.sqlserver.jdbc.SQLServerDriver")
-    .option("accessToken", token)
-    .load()
-)
+> **Important:** `.mssql()` does not exist locally — never import or call it outside a Fabric code path. The conditional `import` of `azure.identity` inside the local path means Fabric never loads that package either.
+
+### Public API — Branch on Environment
+
+Expose a single function that branches internally. Callers never need to know which connector is used.
+
+```python
+def read_table(spark: SparkSession) -> DataFrame:
+    if is_local_dev():
+        return _read_table_local(spark)
+    return _read_table_fabric(spark)
+```
+
+### Pattern Summary
+
+1. Define constants for server, database, table, and driver at module level.
+2. Write a `_read_*_local()` helper using JDBC + `DefaultAzureCredential` access token.
+3. Write a `_read_*_fabric()` helper using `.mssql()` with just a URL option.
+4. Write a public `read_*()` that calls `is_local_dev()` and delegates.
+5. Keep `azure.identity` imports **inside** the local-only function so Fabric never loads them.
+
+### General Auth (non-SQL Azure services)
+
+For services other than SQL (e.g., Storage, Key Vault), `DefaultAzureCredential` works identically in both environments:
+
+| Environment | Credential source |
+|---|---|
+| Local Dev | Azure CLI (`az login`) |
+| Fabric | Workspace Managed Identity (automatic) |
+
+```python
+from azure.identity import DefaultAzureCredential
+
+token = DefaultAzureCredential().get_token("https://storage.azure.com/.default").token
 ```
 
 For configuration values that differ between environments (server names, database names, storage account URLs), use environment variables so the same code adapts without modification.
@@ -279,6 +321,7 @@ The payload to `updateDefinition` has exactly two parts — no `Libs/` section:
 | File paths | `lakehouse/Files/...`, `lakehouse/Tables/...` | `Files/...`, `Tables/...` | `LAKEHOUSE_ROOT` env var |
 | Spark + Delta | `local[*]` + `configure_spark_with_delta_pip()` | Managed cluster, Delta built-in | Conditional setup in session init |
 | Auth | `az login` → `DefaultAzureCredential` | Managed Identity → `DefaultAzureCredential` | Same code, zero changes |
+| SQL connectivity | JDBC + `DefaultAzureCredential` token | `.mssql()` connector + workspace Entra identity | `is_local_dev()` branch in public `read_*()` |
 | Config values | Env vars (`.env`, devcontainer config) | Env vars (Fabric item settings) | `os.environ.get(...)` |
 | Custom libraries | `pip install -e .` | `.whl` via Fabric Environments | Build `--no-deps`, upload, publish |
 | Forbidden APIs | N/A | `mssparkutils`, `notebookutils` | Don't use them in SJD code |
