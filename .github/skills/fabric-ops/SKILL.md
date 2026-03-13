@@ -6,11 +6,13 @@ description: "Deploy SJD, Spark Job Definition, updateDefinition, whl upload, Fa
 
 Everything needed to deploy a Python package as a Fabric Spark Job Definition, run it, and retrieve logs. Organized by phase: **Build → Upload → Publish → Deploy SJD → Run → Check Logs**.
 
+> **Rule:** Before running any Fabric API call, check `devops_helpers/fabric_ops.py` first. If a helper already exists for the operation, use it — don't duplicate it with raw curl. If no helper exists (phases 2–4 below), the commands shown here are ready to use.
+
 ---
 
 ## The `devops_helpers/fabric_ops.py` CLI
 
-This is the primary tool for steps 5–8 of the workflow. Use it before falling back to raw `curl`/`fab api`.
+Covers **run, monitor, and log retrieval** (phases 5–6). Always use these instead of hitting the job-instance APIs directly.
 
 | Command | What it does |
 |---|---|

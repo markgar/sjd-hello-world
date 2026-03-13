@@ -16,7 +16,7 @@ Local PySpark development environment matching Microsoft Fabric Runtime 1.3
 ## Code conventions
 
 - Line length: 120 characters
-- Source code lives in `src/<package>/` (created by sjd-builder from CONSTITUTION.md)
+- Source code lives in `src/hello_pyspark_local_dev/` (created by sjd-builder from CONSTITUTION.md)
 - Tests live in `tests/`
 - Use `from __future__ import annotations` in all modules
 - Imports sorted by ruff (isort-compatible)
@@ -41,4 +41,8 @@ Local PySpark development environment matching Microsoft Fabric Runtime 1.3
 - Use `DefaultAzureCredential` for all Azure auth — works identically local and Fabric
 - Use environment variables for values that differ between environments
 
+## Fabric API access
 
+- **Before any Fabric REST API or OneLake DFS API call, check `devops_helpers/` for existing helpers.**
+- If a helper exists, use it. Do not duplicate it with raw curl/urllib/requests.
+- If no helper exists, raw API calls are fine.
