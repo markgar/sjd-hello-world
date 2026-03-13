@@ -1,16 +1,5 @@
 ---
 description: "Build PySpark ETL as Python packages for Fabric Spark Job Definitions. Full lifecycle: code → test → local run → deploy → verify."
-tools:
-  - run_in_terminal
-  - runTests
-  - create_file
-  - replace_string_in_file
-  - read_file
-  - semantic_search
-  - grep_search
-  - file_search
-  - manage_todo_list
-  - runSubagent
 ---
 
 # SJD Builder Agent
